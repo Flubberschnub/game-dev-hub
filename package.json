@@ -1,0 +1,23 @@
+{
+  "name": "game-dev-hub",
+  "version": "0.1.0",
+  "description": "Role-aware MCP gateway and project workspace for Unity game development with ChatGPT and Codex.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/upstream-env.test.js test/multi-project.test.js test/policy-inspector.test.js test/tool-catalog.test.js",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "unity",
+    "codex",
+    "chatgpt",
+    "game-dev"
+  ],
+  "license": "MIT"
+}

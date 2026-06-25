@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Game Dev Hub</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>Game Dev Hub</h1>
+        <p>Project workspace and role-aware Unity MCP gateway.</p>
+      </div>
+      <button id="refreshBtn" class="button secondary compact">Refresh data</button>
+    </header>
+
+    <main>
+      <nav class="tabs" aria-label="Configuration sections">
+        <button class="tab active" data-tab="project" aria-selected="true">Project Config</button>
+        <button class="tab" data-tab="upstream" aria-selected="false">Upstream MCP</button>
+        <button class="tab" data-tab="documents" aria-selected="false">Documents</button>
+        <button class="tab" data-tab="tasks" aria-selected="false">Tasks</button>
+        <button class="tab" data-tab="activity" aria-selected="false">Messages & Audit</button>
+        <button class="tab" data-tab="connections" aria-selected="false">Connections</button>
+      </nav>
+
+      <section class="tab-panel active" data-tab-panel="project">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2>Project Configuration</h2>
+            <p>Choose the active game project or create a separate workspace with its own documents and MCP settings.</p>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <div class="card">
+            <h3>Current Project</h3>
+            <div class="field">
+              <label for="projectSelect">Active project <span class="help" tabindex="0" data-tooltip="Switching projects changes every other tab to that project's documents, tasks, messages, and upstreams.">?</span></label>
+              <select id="projectSelect"></select>
+            </div>
+            <div id="projectSummary" class="context-note">Loading...</div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="projectName">Display name <span class="help" tabindex="0" data-tooltip="The friendly project name shown throughout the Dev Hub.">?</span></label>
+                <input id="projectName" placeholder="Example: Project Flare" />
+              </div>
+              <div class="field">
+                <label for="projectRepoPath">Repository path <span class="help" tabindex="0" data-tooltip="Absolute path to the source repository used by your coding agents.">?</span></label>
+                <input id="projectRepoPath" placeholder="Example: D:\Games\ProjectFlare" />
+              </div>
+              <div class="field">
+                <label for="projectUnityPath">Unity project path <span class="help" tabindex="0" data-tooltip="Absolute path to the Unity project folder containing Assets and ProjectSettings.">?</span></label>
+                <input id="projectUnityPath" placeholder="Example: D:\Games\ProjectFlare\Unity" />
+              </div>
+              <div class="field">
+                <label for="projectActiveUpstream">Default upstream MCP <span class="help" tabindex="0" data-tooltip="The upstream used by default for this project. Configure servers in the Upstream MCP tab first.">?</span></label>
+                <select id="projectActiveUpstream"></select>
+              </div>
+            </div>
+            <button id="saveProjectBtn">Save Project Configuration</button>
+          </div>
+
+          <div class="card">
+            <h3>Create New Project</h3>
+            <p class="muted">Creates an isolated workspace with starter agent, game-design, and technical-design documents.</p>
+            <div class="field">
+              <label for="newProjectName">Project name <span class="help" tabindex="0" data-tooltip="Required. This is also used to generate a stable project ID.">?</span></label>
+              <input id="newProjectName" placeholder="Example: Moon Harbor" />
+            </div>
+            <div class="field">
+              <label for="newProjectRepoPath">Repository path</label>
+              <input id="newProjectRepoPath" placeholder="Example: D:\Games\MoonHarbor" />
+            </div>
+            <div class="field">
+              <label for="newProjectUnityPath">Unity project path</label>
+              <input id="newProjectUnityPath" placeholder="Example: D:\Games\MoonHarbor\Unity" />
+            </div>
+            <button id="createProjectBtn">Create and Switch</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="upstream" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Integration</p>
+            <h2>Upstream MCP</h2>
+            <p>Configure a Unity MCP server, test its connection, and classify the tools it exposes.</p>
+          </div>
+        </div>
+
+        <div class="grid upstream-layout">
+          <aside class="card">
+            <div class="section-heading">
+              <h3>Saved Servers</h3>
+              <span class="help" tabindex="0" data-tooltip="Servers are scoped to the active project. Click Load to edit or inspect one.">?</span>
+            </div>
+            <div id="upstreamsList" class="compact-list"></div>
+          </aside>
+
+          <div class="card">
+            <h3>Server Configuration</h3>
+            <div class="form-grid two">
+              <div class="field">
+                <label for="upstreamId">Server ID <span class="help" tabindex="0" data-tooltip="A stable unique ID within this project. Leave blank when creating a server to generate one automatically.">?</span></label>
+                <input id="upstreamId" placeholder="Example: anklebreaker-local" />
+              </div>
+              <div class="field">
+                <label for="upstreamName">Display name</label>
+                <input id="upstreamName" placeholder="Example: Local Unity Editor MCP" />
+              </div>
+              <div class="field">
+                <label for="upstreamTransport">Transport <span class="help" tabindex="0" data-tooltip="Use streamable_http for an already-running HTTP server, or stdio to let Dev Hub launch a command.">?</span></label>
+                <select id="upstreamTransport">
+                  <option value="streamable_http">Streamable HTTP</option>
+                  <option value="stdio">Standard input/output (stdio)</option>
+                </select>
+              </div>
+              <label class="check-field">
+                <input id="upstreamEnabled" type="checkbox" />
+                <span>Enabled <span class="help" tabindex="0" data-tooltip="The connection test and routed MCP calls require the server to be enabled.">?</span></span>
+              </label>
+            </div>
+
+            <div class="field">
+              <label for="upstreamUrl">HTTP endpoint URL <span class="help" tabindex="0" data-tooltip="Used only for Streamable HTTP. Enter the complete MCP endpoint, including /mcp when required.">?</span></label>
+              <input id="upstreamUrl" placeholder="Example: http://localhost:8080/mcp" />
+            </div>
+            <div class="field">
+              <label for="upstreamCommand">STDIO command <span class="help" tabindex="0" data-tooltip="Used only for stdio. Enter the executable name or absolute executable path.">?</span></label>
+              <input id="upstreamCommand" placeholder="Example: node or C:\Program Files\nodejs\node.exe" />
+            </div>
+            <div class="field">
+              <label for="upstreamArgs">STDIO arguments — JSON array <span class="help" tabindex="0" data-tooltip="Arguments passed to the command in order. This must be valid JSON.">?</span></label>
+              <textarea id="upstreamArgs" rows="3" placeholder='Example: ["D:/Tools/unity-mcp/server.js", "--port", "8080"]'></textarea>
+            </div>
+            <div class="field">
+              <label for="upstreamEnv">Environment variables — JSON object <span class="help" tabindex="0" data-tooltip="Extra environment variables merged into the launched stdio process. Values may be strings, numbers, or booleans.">?</span></label>
+              <textarea id="upstreamEnv" rows="4" placeholder='Example: {"UNITY_PORT":"8080","LOG_LEVEL":"debug"}'></textarea>
+            </div>
+
+            <details class="advanced">
+              <summary>Advanced mappings and policy JSON</summary>
+              <div class="field">
+                <label for="semanticTools">Semantic tool mappings — JSON object <span class="help" tabindex="0" data-tooltip="Map convenience actions such as consoleRead or screenshot to actual upstream tool names.">?</span></label>
+                <textarea id="semanticTools" rows="5" placeholder='Example: {"consoleRead":"get_console_logs","screenshot":"capture_game_view"}'></textarea>
+              </div>
+              <div class="field">
+                <label for="policyJson">Policy configuration — JSON object <span class="help" tabindex="0" data-tooltip="Controls regex patterns, default access, confirmation requirements, and per-tool overrides. The tool inspector updates overrides here.">?</span></label>
+                <textarea id="policyJson" rows="10" placeholder='Example: {"defaultForChat":"deny","defaultForCodex":"allow","overrides":{}}'></textarea>
+              </div>
+            </details>
+
+            <div class="button-row">
+              <button id="saveUpstreamBtn">Save Configuration</button>
+              <button id="inspectUpstreamBtn" type="button" class="button accent">Save, Connect & List Tools</button>
+            </div>
+            <div id="upstreamConnectionStatus" class="connection-status muted">No connection test run.</div>
+
+            <div class="catalog-heading">
+              <div>
+                <h3>Detected Tools</h3>
+                <p class="muted">Tools are collapsed initially. Expand one to inspect its schema or change its classification.</p>
+              </div>
+              <div class="catalog-actions">
+                <div id="toolCatalogControls" class="catalog-filter" hidden>
+                  <label for="toolCategoryFilter">Category</label>
+                  <select id="toolCategoryFilter">
+                    <option value="all">All categories</option>
+                    <option value="read">Read</option>
+                    <option value="write">Write</option>
+                    <option value="destructive">Destructive</option>
+                    <option value="deny">Denied</option>
+                    <option value="unknown">Uncategorized</option>
+                  </select>
+                  <span id="toolCatalogCount" class="catalog-count"></span>
+                </div>
+                <button id="saveToolOverridesBtn" type="button" class="button secondary compact" hidden>Save Tool Overrides</button>
+              </div>
+            </div>
+            <div id="upstreamToolCatalog" class="tool-catalog" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="documents" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Project Memory</p>
+            <h2>Documents</h2>
+            <p>Maintain project-specific instructions, design notes, technical plans, and handoff documents.</p>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="card">
+            <h3>Project Documents</h3>
+            <div id="docsList" class="compact-list"></div>
+          </div>
+          <div class="card">
+            <h3>Create or Update Document</h3>
+            <div class="field">
+              <label for="docPath">Document path <span class="help" tabindex="0" data-tooltip="A project-relative logical path. Saving the same path updates the existing document.">?</span></label>
+              <input id="docPath" placeholder="Example: AI_TASKS/001-player-movement.md" />
+            </div>
+            <div class="field">
+              <label for="docTitle">Title</label>
+              <input id="docTitle" placeholder="Example: Player Movement Implementation" />
+            </div>
+            <div class="field">
+              <label for="docKind">Document type <span class="help" tabindex="0" data-tooltip="Used to organize documents and communicate their purpose to agents.">?</span></label>
+              <select id="docKind">
+                <option value="design">Design</option>
+                <option value="technical">Technical</option>
+                <option value="agent_instruction">Agent instruction</option>
+                <option value="task">Task</option>
+                <option value="playtest">Playtest</option>
+                <option value="lore">Lore</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="docContent">Markdown content</label>
+              <textarea id="docContent" rows="16" placeholder="Write the project document in Markdown..."></textarea>
+            </div>
+            <label class="check-field">
+              <input id="docAppend" type="checkbox" />
+              <span>Append instead of replace <span class="help" tabindex="0" data-tooltip="Adds this content to the end of an existing document instead of replacing it.">?</span></span>
+            </label>
+            <button id="saveDocBtn">Save Document</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="tasks" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Handoffs</p>
+            <h2>Tasks</h2>
+            <p>Create scoped work packets for Codex, ChatGPT, or a human collaborator.</p>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="card">
+            <h3>Project Tasks</h3>
+            <div id="tasksList" class="compact-list"></div>
+          </div>
+          <div class="card">
+            <h3>Create Task</h3>
+            <div class="field">
+              <label for="taskTitle">Task title</label>
+              <input id="taskTitle" placeholder="Example: Add dash cooldown UI" />
+            </div>
+            <div class="form-grid two">
+              <div class="field">
+                <label for="taskAssignedTo">Assigned to <span class="help" tabindex="0" data-tooltip="Choose the collaborator expected to act on this task.">?</span></label>
+                <select id="taskAssignedTo">
+                  <option value="codex">Codex</option>
+                  <option value="chatgpt">ChatGPT</option>
+                  <option value="human">Human</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="taskStatus">Status</label>
+                <select id="taskStatus">
+                  <option value="idea">Idea</option>
+                  <option value="ready_for_codex">Ready for Codex</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="codex_done">Codex done</option>
+                  <option value="review">Review</option>
+                  <option value="accepted">Accepted</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="taskIntent">Design intent <span class="help" tabindex="0" data-tooltip="Explain the desired player or developer outcome, not merely the implementation steps.">?</span></label>
+              <textarea id="taskIntent" rows="6" placeholder="Describe what should change and why..."></textarea>
+            </div>
+            <div class="field">
+              <label for="taskCriteria">Acceptance criteria <span class="help" tabindex="0" data-tooltip="Enter one testable completion criterion per line.">?</span></label>
+              <textarea id="taskCriteria" rows="6" placeholder="One criterion per line&#10;Example: Cooldown ring reaches zero after 2 seconds"></textarea>
+            </div>
+            <button id="createTaskBtn">Create Task</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="activity" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Collaboration</p>
+            <h2>Messages & Audit</h2>
+            <p>Leave durable project notes and review recent upstream tool access.</p>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="card">
+            <h3>Messages</h3>
+            <div id="messagesList" class="compact-list"></div>
+            <div class="field">
+              <label for="messageFrom">Author</label>
+              <select id="messageFrom">
+                <option value="human">Human</option>
+                <option value="chatgpt">ChatGPT</option>
+                <option value="codex">Codex</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="messageContent">Message</label>
+              <textarea id="messageContent" rows="5" placeholder="Leave a project update, handoff note, or review comment..."></textarea>
+            </div>
+            <button id="postMessageBtn">Post Message</button>
+          </div>
+          <div class="card">
+            <h3>Recent Tool Audit <span class="help" tabindex="0" data-tooltip="Records upstream tool catalog checks and tool calls, including blocked attempts.">?</span></h3>
+            <div id="auditList" class="compact-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="connections" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Client Setup</p>
+            <h2>Connections</h2>
+            <p>Copy these values into Codex or your ChatGPT connector configuration.</p>
+          </div>
+        </div>
+        <div class="card">
+          <pre id="snippets"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

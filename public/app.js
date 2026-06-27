@@ -6,6 +6,17 @@ let discoveredTools = [];
 
 const $ = (id) => document.getElementById(id);
 
+const TASK_STATUS_LABELS = {
+  idea: 'Idea',
+  ready_for_codex: 'Ready for Codex',
+  in_progress: 'In progress',
+  codex_done: 'Codex done',
+  review: 'Review',
+  changes_requested: 'Changes requested',
+  accepted: 'Accepted',
+  complete: 'Complete',
+};
+
 initializeTabs();
 
 async function api(path, options = {}) {
@@ -52,12 +63,14 @@ function renderProject() {
   $('projectSelect').value = project?.id || '';
 
   $('projectSummary').innerHTML = project
-    ? `<span class="muted">id: ${escapeHtml(project.id)}</span>`
+    ? `<span class="muted">id: ${escapeHtml(project.id)} · project space: ${escapeHtml(state.storage?.projectSpacePath || '')}</span>`
     : 'No project found.';
 
   $('projectName').value = project?.name || '';
   $('projectRepoPath').value = project?.repoPath || '';
   $('projectUnityPath').value = project?.unityProjectPath || '';
+  $('projectDocsPath').value = project?.docsPath || '';
+  $('projectObsidianPath').value = project?.obsidianVaultPath || '';
 
   const upstreams = state.upstreams.filter((u) => u.projectId === activeProjectId);
   $('projectActiveUpstream').innerHTML = [
@@ -71,7 +84,7 @@ function renderDocs() {
   const docs = state.documents.filter((d) => d.projectId === activeProjectId);
   $('docsList').innerHTML = docs
     .map(
-      (d) => `<div class="item"><strong>${escapeHtml(d.path)}</strong><span class="badge">${escapeHtml(d.kind)}</span><p>${escapeHtml(d.title)}</p><button data-doc="${d.path}">Load</button></div>`,
+      (d) => `<div class="item"><strong>${escapeHtml(d.path)}</strong><span class="badge">${escapeHtml(d.kind)}</span> <span class="badge">${escapeHtml(d.source || d.storage || 'state')}</span><p>${escapeHtml(d.title)}</p><button data-doc="${d.path}">Load</button></div>`,
     )
     .join('');
   document.querySelectorAll('[data-doc]').forEach((btn) => {
@@ -88,11 +101,131 @@ function renderDocs() {
 
 function renderTasks() {
   const tasks = state.tasks.filter((t) => t.projectId === activeProjectId);
-  $('tasksList').innerHTML = tasks
-    .map(
-      (t) => `<div class="item"><strong>${escapeHtml(t.title)}</strong><span class="badge">${escapeHtml(t.status)}</span> <span class="badge">${escapeHtml(t.assignedTo)}</span><p>${escapeHtml(t.designIntent || '')}</p></div>`,
-    )
+  const view = $('taskView').value || 'active';
+  const visibleTasks = tasks.filter((task) => {
+    const archived = Boolean(task.archivedAt);
+    if (view === 'archived') return archived;
+    if (view === 'all') return true;
+    return !archived;
+  });
+
+  $('taskParentId').innerHTML = [
+    '<option value="">No parent task</option>',
+    ...tasks
+      .filter((task) => !task.archivedAt)
+      .map((task) => `<option value="${escapeHtml(task.id)}">${escapeHtml(task.title)}</option>`),
+  ].join('');
+
+  $('tasksList').innerHTML = visibleTasks.length
+    ? renderTaskTree(visibleTasks)
+    : `<div class="catalog-empty">${view === 'archived' ? 'No archived tasks.' : 'No tasks in this view.'}</div>`;
+
+  document.querySelectorAll('[data-task-action]').forEach((btn) => {
+    btn.addEventListener('click', () => handleTaskAction(btn.dataset.taskAction, btn.dataset.taskId));
+  });
+}
+
+function renderTaskTree(tasks) {
+  const byParent = new Map();
+  const visibleIds = new Set(tasks.map((task) => task.id));
+  for (const task of tasks) {
+    const parentId = visibleIds.has(task.parentTaskId) ? task.parentTaskId : '';
+    const siblings = byParent.get(parentId) || [];
+    siblings.push(task);
+    byParent.set(parentId, siblings);
+  }
+
+  const renderBranch = (parentId = '', depth = 0) => (byParent.get(parentId) || [])
+    .sort(compareTasks)
+    .map((task) => {
+      const archived = Boolean(task.archivedAt);
+      const badges = [
+        `<span class="badge">${escapeHtml(TASK_STATUS_LABELS[task.status] || task.status)}</span>`,
+        `<span class="badge">${escapeHtml(task.assignedTo)}</span>`,
+        archived ? '<span class="badge archived">archived</span>' : '',
+      ].filter(Boolean).join(' ');
+      const criteria = (task.acceptanceCriteria || []).length
+        ? `<ul class="task-criteria">${task.acceptanceCriteria.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+        : '';
+      const reviewNote = task.reviewNote
+        ? `<p class="task-review-note"><strong>Review note:</strong> ${escapeHtml(task.reviewNote)}</p>`
+        : '';
+      const children = renderBranch(task.id, depth + 1);
+      return `
+        <div class="item task-item depth-${Math.min(depth, 4)}">
+          <div class="task-title-row">
+            <strong>${escapeHtml(task.title)}</strong>
+            <span class="task-badges">${badges}</span>
+          </div>
+          <p>${escapeHtml(task.designIntent || '')}</p>
+          ${reviewNote}
+          ${criteria}
+          <div class="task-actions">
+            <button type="button" class="button compact" data-task-action="complete" data-task-id="${escapeHtml(task.id)}">Complete</button>
+            <button type="button" class="button compact secondary" data-task-action="changes" data-task-id="${escapeHtml(task.id)}">Request Changes</button>
+            ${archived
+              ? `<button type="button" class="button compact secondary" data-task-action="unarchive" data-task-id="${escapeHtml(task.id)}">Restore</button>`
+              : `<button type="button" class="button compact secondary" data-task-action="archive" data-task-id="${escapeHtml(task.id)}">Archive</button>`}
+            <button type="button" class="button compact danger" data-task-action="delete" data-task-id="${escapeHtml(task.id)}">Delete</button>
+          </div>
+        </div>
+        ${children ? `<div class="task-children">${children}</div>` : ''}`;
+    })
     .join('');
+
+  return renderBranch();
+}
+
+function compareTasks(a, b) {
+  const aDone = ['complete', 'accepted'].includes(a.status);
+  const bDone = ['complete', 'accepted'].includes(b.status);
+  if (aDone !== bDone) return aDone ? 1 : -1;
+  return String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt));
+}
+
+async function handleTaskAction(action, taskId) {
+  if (!activeProjectId || !taskId) return;
+  const encodedProjectId = encodeURIComponent(activeProjectId);
+  const encodedTaskId = encodeURIComponent(taskId);
+
+  if (action === 'complete') {
+    await api(`/api/projects/${encodedProjectId}/tasks/${encodedTaskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'complete', updatedBy: 'human', completedBy: 'human' }),
+    });
+  }
+
+  if (action === 'changes') {
+    const reviewNote = window.prompt('What needs to change before this task is complete?') || '';
+    if (!reviewNote.trim()) return;
+    await api(`/api/projects/${encodedProjectId}/tasks/${encodedTaskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        requestChanges: true,
+        reviewNote,
+        updatedBy: 'human',
+        changesRequestedBy: 'human',
+      }),
+    });
+    await api(`/api/projects/${encodedProjectId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ from: 'human', taskId, content: `Changes requested: ${reviewNote}` }),
+    });
+  }
+
+  if (action === 'archive' || action === 'unarchive') {
+    await api(`/api/projects/${encodedProjectId}/tasks/${encodedTaskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archive: action === 'archive', updatedBy: 'human', archivedBy: 'human' }),
+    });
+  }
+
+  if (action === 'delete') {
+    if (!window.confirm('Delete this task permanently? Subtasks will be moved up one level.')) return;
+    await api(`/api/projects/${encodedProjectId}/tasks/${encodedTaskId}`, { method: 'DELETE' });
+  }
+
+  await load();
 }
 
 function renderUpstreams() {
@@ -115,6 +248,7 @@ function renderUpstreams() {
       $('upstreamEnabled').checked = Boolean(u.enabled);
       $('semanticTools').value = JSON.stringify(u.semanticTools || {}, null, 2);
       $('policyJson').value = JSON.stringify(u.policy || {}, null, 2);
+      $('chatFullAccess').checked = Boolean(u.policy?.chatFullAccess);
       clearToolCatalog();
     });
   });
@@ -143,6 +277,8 @@ function renderSnippets() {
 
 $('refreshBtn').addEventListener('click', load);
 
+$('taskView').addEventListener('change', renderTasks);
+
 $('projectSelect').addEventListener('change', async () => {
   const projectId = $('projectSelect').value;
   if (!projectId || projectId === activeProjectId) return;
@@ -158,6 +294,8 @@ $('saveProjectBtn').addEventListener('click', async () => {
       name: $('projectName').value,
       repoPath: $('projectRepoPath').value,
       unityProjectPath: $('projectUnityPath').value,
+      docsPath: $('projectDocsPath').value,
+      obsidianVaultPath: $('projectObsidianPath').value,
       activeUpstreamId: $('projectActiveUpstream').value,
     }),
   });
@@ -171,12 +309,16 @@ $('createProjectBtn').addEventListener('click', async () => {
       name: $('newProjectName').value,
       repoPath: $('newProjectRepoPath').value,
       unityProjectPath: $('newProjectUnityPath').value,
+      docsPath: $('newProjectDocsPath').value,
+      obsidianVaultPath: $('newProjectObsidianPath').value,
     }),
   });
   await api(`/api/projects/${encodeURIComponent(project.id)}/active`, { method: 'POST' });
   $('newProjectName').value = '';
   $('newProjectRepoPath').value = '';
   $('newProjectUnityPath').value = '';
+  $('newProjectDocsPath').value = '';
+  $('newProjectObsidianPath').value = '';
   await load();
 });
 
@@ -195,10 +337,11 @@ $('saveDocBtn').addEventListener('click', async () => {
 });
 
 $('createTaskBtn').addEventListener('click', async () => {
-  await api(`/api/projects/${activeProjectId}/tasks`, {
+  await api(`/api/projects/${encodeURIComponent(activeProjectId)}/tasks`, {
     method: 'POST',
     body: JSON.stringify({
       title: $('taskTitle').value,
+      parentTaskId: $('taskParentId').value || null,
       status: $('taskStatus').value,
       designIntent: $('taskIntent').value,
       acceptanceCriteria: $('taskCriteria').value.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -207,6 +350,7 @@ $('createTaskBtn').addEventListener('click', async () => {
     }),
   });
   $('taskTitle').value = '';
+  $('taskParentId').value = '';
   $('taskIntent').value = '';
   $('taskCriteria').value = '';
   await load();
@@ -248,6 +392,7 @@ $('saveToolOverridesBtn').addEventListener('click', async () => {
 
 async function saveUpstreamForm() {
   const policy = parseJsonObject($('policyJson').value, 'Policy');
+  policy.chatFullAccess = $('chatFullAccess').checked;
   const upstream = await api(`/api/projects/${activeProjectId}/upstreams`, {
     method: 'POST',
     body: JSON.stringify({
@@ -264,6 +409,7 @@ async function saveUpstreamForm() {
     }),
   });
   $('upstreamId').value = upstream.id;
+  $('policyJson').value = JSON.stringify(upstream.policy || {}, null, 2);
   return upstream;
 }
 
@@ -302,9 +448,12 @@ function resetWorkspaceForms() {
     'docTitle',
     'docContent',
     'taskTitle',
+    'taskParentId',
     'taskIntent',
     'taskCriteria',
     'upstreamId',
+    'projectDocsPath',
+    'projectObsidianPath',
     'upstreamName',
     'upstreamUrl',
     'upstreamCommand',
@@ -318,6 +467,7 @@ function resetWorkspaceForms() {
   }
   $('docAppend').checked = false;
   $('upstreamEnabled').checked = false;
+  $('chatFullAccess').checked = false;
   clearToolCatalog();
 }
 
@@ -365,7 +515,7 @@ function renderToolCatalog() {
               <div>
                 <span class="badge">auto: ${escapeHtml(automaticDetail)}</span>
                 <span class="badge">effective: ${escapeHtml(effective)}</span>
-                ${toolAccessBadges(effective)}
+                ${toolAccessBadges(effective, policy)}
               </div>
               <label class="field">
                 Manual classification
@@ -409,7 +559,12 @@ function toolPolicyOption(value, label, selected) {
   return `<option value="${value}"${value === selected ? ' selected' : ''}>${label}</option>`;
 }
 
-function toolAccessBadges(category) {
+function toolAccessBadges(category, policy = {}) {
+  if (policy.chat || policy.codex) {
+    const chatText = policy.chat?.allowed ? 'allowed' : 'denied';
+    const codexText = policy.codex?.requiresConfirmation ? 'confirmation' : policy.codex?.allowed ? 'allowed' : 'denied';
+    return `<span class="badge">Chat: ${chatText}</span> <span class="badge">Codex: ${codexText}</span>`;
+  }
   if (category === 'read') return '<span class="badge">Chat: allowed</span> <span class="badge">Codex: allowed</span>';
   if (category === 'destructive') return '<span class="badge">Chat: denied</span> <span class="badge">Codex: confirmation</span>';
   if (category === 'deny') return '<span class="badge">Chat: denied</span> <span class="badge">Codex: denied</span>';

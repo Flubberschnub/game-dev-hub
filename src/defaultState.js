@@ -3,7 +3,7 @@ import { nowIso } from './utils.js';
 export function createDefaultState() {
   const createdAt = nowIso();
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     activeProjectId: 'flare-demo',
     projects: [
       {
@@ -11,6 +11,8 @@ export function createDefaultState() {
         name: 'Project Flare Demo',
         repoPath: '',
         unityProjectPath: '',
+        docsPath: '',
+        obsidianVaultPath: '',
         activeUpstreamId: 'anklebreaker-local',
         createdAt,
         updatedAt: createdAt,
@@ -53,6 +55,7 @@ export function createDefaultState() {
         id: 'task_demo',
         projectId: 'flare-demo',
         title: 'Wire Dev Hub to Unity MCP',
+        parentTaskId: null,
         status: 'idea',
         designIntent: 'Verify the Dev Hub can list upstream Unity MCP tools and safely route role-filtered calls.',
         acceptanceCriteria: [
@@ -62,6 +65,13 @@ export function createDefaultState() {
         ],
         assignedTo: 'human',
         createdBy: 'human',
+        completedAt: null,
+        completedBy: null,
+        changesRequestedAt: null,
+        changesRequestedBy: null,
+        reviewNote: '',
+        archivedAt: null,
+        archivedBy: null,
         createdAt,
         updatedAt: createdAt,
       },
@@ -87,6 +97,7 @@ export function createDefaultState() {
         },
         policy: {
           toolProfile: 'anklebreaker-unity',
+          chatFullAccess: false,
           defaultForChat: 'deny',
           defaultForCodex: 'allow',
           readPatterns: [

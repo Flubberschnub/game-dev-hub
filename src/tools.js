@@ -4,7 +4,10 @@ import { requireFields, summarizeObject } from './utils.js';
 
 function textResult(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  return { content: [{ type: 'text', text }] };
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: value && typeof value === 'object' && !Array.isArray(value) ? value : { value },
+  };
 }
 
 function schema(properties = {}, required = []) {
@@ -16,11 +19,98 @@ function schema(properties = {}, required = []) {
   };
 }
 
+function mcpTool(definition, { category = 'read', outputSchema = null } = {}) {
+  return {
+    ...definition,
+    annotations: safetyAnnotations(category),
+    ...(outputSchema ? { outputSchema } : {}),
+  };
+}
+
+function safetyAnnotations(category) {
+  if (category === 'destructive') {
+    return {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    };
+  }
+
+  if (category === 'write') {
+    return {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    };
+  }
+
+  return {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  };
+}
+
+const categoryProperty = {
+  type: 'string',
+  enum: ['read', 'write', 'destructive', 'deny', 'unknown'],
+};
+
+const upstreamCatalogOutputSchema = schema({
+  upstream: { type: 'object', additionalProperties: true },
+  tools: {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        inputSchema: { type: 'object', additionalProperties: true },
+        devHubCategory: categoryProperty,
+        devHubAllowedForCaller: { type: 'boolean' },
+        devHubSafety: {
+          type: 'object',
+          properties: {
+            readOnlyHint: { type: 'boolean' },
+            destructiveHint: { type: 'boolean' },
+            idempotentHint: { type: 'boolean' },
+            openWorldHint: { type: 'boolean' },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ['name', 'devHubCategory', 'devHubAllowedForCaller', 'devHubSafety'],
+      additionalProperties: true,
+    },
+  },
+}, ['upstream', 'tools']);
+
+const upstreamToolCallOutputSchema = schema({
+  upstream: { type: 'object', additionalProperties: true },
+  toolName: { type: 'string' },
+  category: categoryProperty,
+  safety: {
+    type: 'object',
+    properties: {
+      readOnlyHint: { type: 'boolean' },
+      destructiveHint: { type: 'boolean' },
+      idempotentHint: { type: 'boolean' },
+      openWorldHint: { type: 'boolean' },
+    },
+    additionalProperties: false,
+  },
+  result: { type: 'object', additionalProperties: true },
+}, ['upstream', 'toolName', 'category', 'safety', 'result']);
+
 function projectIdFrom(store, args) {
   return args?.projectId || store.getActiveProject()?.id;
 }
 
-export function listDevHubTools(role) {
+export function listDevHubTools(role, options = {}) {
+  const chatFullAccess = Boolean(options.chatFullAccess);
   const common = [
     {
       name: 'hub_help',
@@ -50,6 +140,8 @@ export function listDevHubTools(role) {
           name: { type: 'string' },
           repoPath: { type: 'string' },
           unityProjectPath: { type: 'string' },
+          docsPath: { type: 'string' },
+          obsidianVaultPath: { type: 'string' },
         },
         ['name'],
       ),
@@ -63,6 +155,8 @@ export function listDevHubTools(role) {
           name: { type: 'string' },
           repoPath: { type: 'string' },
           unityProjectPath: { type: 'string' },
+          docsPath: { type: 'string' },
+          obsidianVaultPath: { type: 'string' },
           activeUpstreamId: { type: 'string' },
         },
         ['projectId'],
@@ -99,9 +193,42 @@ export function listDevHubTools(role) {
       ),
     },
     {
+      name: 'vault_list',
+      description: 'List Markdown notes in the project-configured Obsidian vault. This is separate from Dev Hub project documents.',
+      inputSchema: schema({ projectId: { type: 'string' } }),
+    },
+    {
+      name: 'vault_read',
+      description: 'Read a Markdown note from the project-configured Obsidian vault by vault-relative path.',
+      inputSchema: schema({ projectId: { type: 'string' }, path: { type: 'string' } }, ['path']),
+    },
+    {
+      name: 'vault_search',
+      description: 'Search Markdown notes in the project-configured Obsidian vault by keyword.',
+      inputSchema: schema({ projectId: { type: 'string' }, query: { type: 'string' } }, ['query']),
+    },
+    {
+      name: 'vault_write',
+      description: 'Create or replace a Markdown note in the project-configured Obsidian vault. Use append=true to append instead of replacing.',
+      inputSchema: schema(
+        {
+          projectId: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+          append: { type: 'boolean' },
+        },
+        ['path', 'content'],
+      ),
+    },
+    {
       name: 'tasks_list',
-      description: 'List tasks for a project, optionally filtered by status.',
-      inputSchema: schema({ projectId: { type: 'string' }, status: { type: 'string' } }),
+      description: 'List active tasks for a project, optionally filtered by status. Set archivedOnly or includeArchived to inspect archived work.',
+      inputSchema: schema({
+        projectId: { type: 'string' },
+        status: { type: 'string' },
+        includeArchived: { type: 'boolean' },
+        archivedOnly: { type: 'boolean' },
+      }),
     },
     {
       name: 'task_read',
@@ -115,6 +242,7 @@ export function listDevHubTools(role) {
         {
           projectId: { type: 'string' },
           title: { type: 'string' },
+          parentTaskId: { type: 'string' },
           status: { type: 'string' },
           designIntent: { type: 'string' },
           implementationNotes: { type: 'string' },
@@ -133,14 +261,26 @@ export function listDevHubTools(role) {
           projectId: { type: 'string' },
           taskId: { type: 'string' },
           title: { type: 'string' },
+          parentTaskId: { type: 'string' },
           status: { type: 'string' },
           designIntent: { type: 'string' },
           implementationNotes: { type: 'string' },
           acceptanceCriteria: { type: 'array', items: { type: 'string' } },
           assignedTo: { type: 'string' },
+          reviewNote: { type: 'string' },
+          requestChanges: { type: 'boolean' },
+          archive: { type: 'boolean' },
+          updatedBy: { type: 'string' },
+          completedBy: { type: 'string' },
+          changesRequestedBy: { type: 'string' },
         },
         ['taskId'],
       ),
+    },
+    {
+      name: 'task_delete',
+      description: 'Permanently delete a task. Subtasks are moved to the deleted task parent.',
+      inputSchema: schema({ projectId: { type: 'string' }, taskId: { type: 'string' } }, ['taskId']),
     },
     {
       name: 'messages_list',
@@ -199,7 +339,9 @@ export function listDevHubTools(role) {
   const chatTools = [
     {
       name: 'unity_call_read_tool',
-      description: 'Call a read-classified tool on the configured upstream Unity MCP. Only available to ChatGPT/read roles.',
+      description: chatFullAccess
+        ? 'Call a tool on the configured upstream Unity MCP. ChatGPT full access is enabled for the active upstream, so write and destructive-classified tools may be called unless explicitly denied.'
+        : 'Call a read-classified tool on the configured upstream Unity MCP. Only available to ChatGPT/read roles.',
       inputSchema: schema(
         {
           projectId: { type: 'string' },
@@ -244,10 +386,67 @@ export function listDevHubTools(role) {
     },
   ];
 
-  if (role === 'chat') return [...common, ...chatTools];
-  if (role === 'codex') return [...common, ...codexTools];
-  if (role === 'admin') return [...common, ...chatTools, ...codexTools];
-  return common;
+  const decorateTools = (tools) => tools.map((tool) => mcpTool(tool, {
+    category: toolSafetyCategory(tool.name, { chatFullAccess }),
+    outputSchema: toolOutputSchema(tool.name),
+  }));
+
+  if (role === 'chat') return decorateTools([...common, ...chatTools]);
+  if (role === 'codex') return decorateTools([...common, ...codexTools]);
+  if (role === 'admin') return decorateTools([...common, ...chatTools, ...codexTools]);
+  return decorateTools(common);
+}
+
+function toolSafetyCategory(toolName, { chatFullAccess = false } = {}) {
+  if ([
+    'project_set_active',
+    'project_create',
+    'project_update',
+    'docs_write',
+    'vault_write',
+    'task_create',
+    'task_update',
+    'message_post',
+    'decision_record',
+  ].includes(toolName)) {
+    return 'write';
+  }
+
+  if (['task_delete', 'unity_call_tool'].includes(toolName)) {
+    return 'destructive';
+  }
+
+  if (toolName === 'unity_call_read_tool' && chatFullAccess) {
+    return 'destructive';
+  }
+
+  return 'read';
+}
+
+function toolOutputSchema(toolName) {
+  if (toolName === 'upstream_tool_catalog') return upstreamCatalogOutputSchema;
+  if ([
+    'unity_call_read_tool',
+    'unity_scene_overview',
+    'unity_console_read',
+    'unity_screenshot',
+    'unity_call_tool',
+  ].includes(toolName)) {
+    return upstreamToolCallOutputSchema;
+  }
+  return null;
+}
+
+export function chatFullAccessForActiveUpstream(store) {
+  const project = store.getActiveProject();
+  if (!project?.activeUpstreamId) return false;
+  return chatFullAccessForUpstream(store, project.id, project.activeUpstreamId);
+}
+
+function chatFullAccessForUpstream(store, projectId, upstreamId) {
+  if (!projectId || !upstreamId) return false;
+  const upstream = store.getUpstream(projectId, upstreamId);
+  return Boolean(upstream?.policy?.chatFullAccess);
 }
 
 export async function callDevHubTool({ store, upstreamRegistry, role, name, args = {} }) {
@@ -312,8 +511,33 @@ export async function callDevHubTool({ store, upstreamRegistry, role, name, args
         }),
       );
 
+    case 'vault_list':
+      return textResult(store.listVaultNotes(projectId));
+
+    case 'vault_read':
+      requireFields(args, ['path']);
+      return textResult(store.getVaultNote(projectId, args.path));
+
+    case 'vault_search':
+      requireFields(args, ['query']);
+      return textResult(store.searchVaultNotes(projectId, args.query));
+
+    case 'vault_write':
+      requireFields(args, ['path', 'content']);
+      return textResult(
+        store.writeVaultNote(projectId, {
+          path: args.path,
+          content: args.content,
+          append: Boolean(args.append),
+        }),
+      );
+
     case 'tasks_list':
-      return textResult(store.listTasks(projectId, args.status));
+      return textResult(store.listTasks(projectId, {
+        status: args.status,
+        includeArchived: Boolean(args.includeArchived),
+        archivedOnly: Boolean(args.archivedOnly),
+      }));
 
     case 'task_read':
       requireFields(args, ['taskId']);
@@ -325,6 +549,10 @@ export async function callDevHubTool({ store, upstreamRegistry, role, name, args
     case 'task_update':
       requireFields(args, ['taskId']);
       return textResult(store.updateTask(projectId, args.taskId, args));
+
+    case 'task_delete':
+      requireFields(args, ['taskId']);
+      return textResult(store.deleteTask(projectId, args.taskId));
 
     case 'messages_list':
       return textResult(store.listMessages(projectId, args.taskId));
@@ -348,7 +576,14 @@ export async function callDevHubTool({ store, upstreamRegistry, role, name, args
 
     case 'unity_call_read_tool':
       if (role !== 'chat' && role !== 'admin') throw new Error('unity_call_read_tool is only available to chat/admin roles.');
-      return callUpstreamTool({ store, upstreamRegistry, role: 'chat', projectId, args, forceReadOnly: true });
+      return callUpstreamTool({
+        store,
+        upstreamRegistry,
+        role: 'chat',
+        projectId,
+        args,
+        forceReadOnly: !chatFullAccessForUpstream(store, projectId, args.upstreamId),
+      });
 
     case 'unity_scene_overview':
       return callSemanticTool({ store, upstreamRegistry, role, projectId, args, semanticKey: 'sceneOverview' });
@@ -386,7 +621,12 @@ async function callUpstreamCatalog({ store, upstreamRegistry, role, projectId, a
       : upstream;
     const categorized = tools.map((tool) => {
       const policy = isAllowed({ role, toolName: tool.name, upstream: classifiedUpstream });
-      return { ...tool, devHubCategory: policy.category, devHubAllowedForCaller: policy.allowed };
+      return {
+        ...tool,
+        devHubCategory: policy.category,
+        devHubAllowedForCaller: policy.allowed,
+        devHubSafety: safetyAnnotations(policy.category),
+      };
     });
     store.logToolCall({
       projectId,
@@ -486,6 +726,7 @@ async function callUpstreamTool({ store, upstreamRegistry, role, projectId, args
       upstream: sanitizeUpstream(upstream),
       toolName: args.toolName,
       category: policy.category,
+      safety: safetyAnnotations(policy.category),
       result,
     });
   } catch (error) {

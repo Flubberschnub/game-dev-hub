@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inspectToolPolicy, isAllowed } from '../src/policy.js';
 import { detectToolProfile } from '../src/toolProfiles.js';
+import { listDevHubTools } from '../src/tools.js';
 
 test('policy inspector reports regex matches and manual overrides', () => {
   const policy = {
@@ -91,4 +92,54 @@ test('deny overrides block chat, codex, and confirmed destructive calls', () => 
     isAllowed({ role: 'codex', toolName: 'delete_everything', upstream, confirm: true }).allowed,
     false,
   );
+});
+
+test('ChatGPT full access policy permits non-denied write and destructive tools', () => {
+  const upstream = {
+    policy: {
+      chatFullAccess: true,
+      overrides: {
+        blocked_tool: 'deny',
+      },
+    },
+  };
+
+  assert.equal(isAllowed({ role: 'chat', toolName: 'set_scene', upstream }).allowed, true);
+  assert.equal(isAllowed({ role: 'chat', toolName: 'delete_scene', upstream }).allowed, true);
+  assert.equal(isAllowed({ role: 'chat', toolName: 'blocked_tool', upstream }).allowed, false);
+});
+
+test('ChatGPT Unity proxy descriptor reflects full access mode', () => {
+  const readOnlyProxy = listDevHubTools('chat').find((tool) => tool.name === 'unity_call_read_tool');
+  assert.equal(readOnlyProxy.annotations.readOnlyHint, true);
+  assert.equal(readOnlyProxy.annotations.destructiveHint, false);
+
+  const fullAccessProxy = listDevHubTools('chat', { chatFullAccess: true })
+    .find((tool) => tool.name === 'unity_call_read_tool');
+  assert.equal(fullAccessProxy.annotations.readOnlyHint, false);
+  assert.equal(fullAccessProxy.annotations.destructiveHint, true);
+  assert.match(fullAccessProxy.description, /full access is enabled/);
+});
+
+test('Dev Hub MCP tool descriptors expose safety annotations and output schemas', () => {
+  const chatTools = listDevHubTools('chat');
+  const codexTools = listDevHubTools('codex');
+
+  const readProxy = chatTools.find((tool) => tool.name === 'unity_call_read_tool');
+  assert.equal(readProxy.annotations.readOnlyHint, true);
+  assert.equal(readProxy.annotations.destructiveHint, false);
+  assert.equal(readProxy.outputSchema.properties.category.enum.includes('read'), true);
+  assert.equal(readProxy.outputSchema.properties.safety.properties.readOnlyHint.type, 'boolean');
+
+  const catalog = chatTools.find((tool) => tool.name === 'upstream_tool_catalog');
+  assert.equal(catalog.annotations.readOnlyHint, true);
+  assert.equal(catalog.outputSchema.properties.tools.items.properties.devHubCategory.enum.includes('destructive'), true);
+  assert.equal(catalog.outputSchema.properties.tools.items.properties.devHubSafety.properties.destructiveHint.type, 'boolean');
+
+  const codexProxy = codexTools.find((tool) => tool.name === 'unity_call_tool');
+  assert.equal(codexProxy.annotations.readOnlyHint, false);
+  assert.equal(codexProxy.annotations.destructiveHint, true);
+
+  const deleteTask = chatTools.find((tool) => tool.name === 'task_delete');
+  assert.equal(deleteTask.annotations.destructiveHint, true);
 });

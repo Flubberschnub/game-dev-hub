@@ -287,6 +287,16 @@ button:hover, .button:hover {
   background: #197268;
 }
 
+.button.danger {
+  color: #991b1b;
+  background: #fff5f5;
+  border-color: #fecaca;
+}
+
+.button.danger:hover {
+  background: #fee2e2;
+}
+
 .button.compact {
   width: auto;
   min-height: 36px;
@@ -374,6 +384,88 @@ button:hover, .button:hover {
   background: #e8edf4;
   border-radius: 999px;
   font-size: 0.76rem;
+}
+
+.badge.archived {
+  color: #5f5560;
+  background: #f0e7ef;
+}
+
+.task-heading {
+  margin-bottom: 0.8rem;
+}
+
+.task-view-control {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.task-view-control label {
+  color: #526078;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.task-view-control select {
+  padding: 0.5rem 0.65rem;
+}
+
+.task-item {
+  border-left: 4px solid #a9c9eb;
+}
+
+.task-item.depth-1 {
+  margin-left: 1rem;
+  border-left-color: #a9d8b8;
+}
+
+.task-item.depth-2 {
+  margin-left: 2rem;
+  border-left-color: #e2c266;
+}
+
+.task-item.depth-3,
+.task-item.depth-4 {
+  margin-left: 3rem;
+  border-left-color: #c9b8e5;
+}
+
+.task-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.task-title-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-badges {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.task-criteria {
+  margin: 0.45rem 0 0.7rem;
+  padding-left: 1.1rem;
+  color: #526078;
+}
+
+.task-review-note {
+  padding: 0.55rem 0.65rem;
+  color: #7c2d12;
+  background: #ffedd5;
+  border-radius: 8px;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .advanced {
@@ -591,5 +683,22 @@ button:hover, .button:hover {
 
   .tool-policy-control {
     grid-template-columns: 1fr;
+  }
+
+  .task-title-row, .task-view-control {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-badges {
+    text-align: left;
+  }
+
+  .task-item.depth-1,
+  .task-item.depth-2,
+  .task-item.depth-3,
+  .task-item.depth-4 {
+    margin-left: 0.55rem;
   }
 }

@@ -27,7 +27,7 @@ export async function handleApiRequest({ req, res, store, upstreamRegistry }) {
     }
 
     if (path === '/api/state' && req.method === 'GET') {
-      respondJson(res, 200, store.getState(), corsHeaders());
+      respondJson(res, 200, { ...store.getState(), storage: store.getStorageInfo() }, corsHeaders());
       return true;
     }
 
@@ -89,8 +89,28 @@ async function handleProjectApi({ req, res, store, upstreamRegistry, projectId, 
     return;
   }
 
+  if (tail === 'vault' && req.method === 'GET') {
+    respondJson(res, 200, store.listVaultNotes(projectId), corsHeaders());
+    return;
+  }
+
+  if (tail === 'vault' && req.method === 'POST') {
+    respondJson(res, 201, store.writeVaultNote(projectId, await jsonBody(req)), corsHeaders());
+    return;
+  }
+
+  const vaultMatch = tail.match(/^vault\/(.+)$/);
+  if (vaultMatch && req.method === 'GET') {
+    respondJson(res, 200, store.getVaultNote(projectId, decodeURIComponent(vaultMatch[1])), corsHeaders());
+    return;
+  }
+
   if (tail === 'tasks' && req.method === 'GET') {
-    respondJson(res, 200, store.listTasks(projectId, url.searchParams.get('status')), corsHeaders());
+    respondJson(res, 200, store.listTasks(projectId, {
+      status: url.searchParams.get('status') || '',
+      includeArchived: url.searchParams.get('includeArchived') === 'true',
+      archivedOnly: url.searchParams.get('archived') === 'true',
+    }), corsHeaders());
     return;
   }
 
@@ -107,6 +127,11 @@ async function handleProjectApi({ req, res, store, upstreamRegistry, projectId, 
 
   if (taskMatch && req.method === 'PATCH') {
     respondJson(res, 200, store.updateTask(projectId, taskMatch[1], await jsonBody(req)), corsHeaders());
+    return;
+  }
+
+  if (taskMatch && req.method === 'DELETE') {
+    respondJson(res, 200, store.deleteTask(projectId, taskMatch[1]), corsHeaders());
     return;
   }
 
@@ -250,6 +275,6 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, GET, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, GET, PATCH, DELETE, OPTIONS',
   };
 }

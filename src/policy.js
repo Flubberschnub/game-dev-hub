@@ -93,6 +93,15 @@ export function isAllowed({ role, toolName, upstream, confirm = false, arguments
   }
 
   if (role === 'chat') {
+    if (policy.chatFullAccess) {
+      return {
+        allowed: true,
+        category,
+        requiresConfirmation: false,
+        reason: 'Chat role has explicit full upstream access enabled for this upstream.',
+      };
+    }
+
     const defaultForChat = policy.defaultForChat || 'deny';
     const allowed = category === 'read' || (category === 'unknown' && defaultForChat === 'allow');
     return {

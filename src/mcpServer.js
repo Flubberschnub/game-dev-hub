@@ -1,4 +1,4 @@
-import { callDevHubTool, listDevHubTools } from './tools.js';
+import { callDevHubTool, chatFullAccessForActiveUpstream, listDevHubTools } from './tools.js';
 import { getBearerToken, readRequestBody, respondJson } from './utils.js';
 
 const SERVER_INFO = {
@@ -81,7 +81,9 @@ async function dispatch({ method, params, store, upstreamRegistry, role }) {
         serverInfo: SERVER_INFO,
         instructions:
           role === 'chat'
-            ? 'You are connected to Game Dev Hub as ChatGPT. Use project docs/tasks/messages for planning and review. Unity access is read-only through policy-filtered tools.'
+            ? chatFullAccessForActiveUpstream(store)
+              ? 'You are connected to Game Dev Hub as ChatGPT. Use project docs/tasks/messages for planning and review. Unity access has explicit full access enabled for the active upstream; respect Dev Hub tool categories and explicit deny overrides.'
+              : 'You are connected to Game Dev Hub as ChatGPT. Use project docs/tasks/messages for planning and review. Unity access is read-only through policy-filtered tools.'
             : role === 'codex'
               ? 'You are connected to Game Dev Hub as Codex. Use project docs/tasks/messages for implementation handoffs. Unity access is policy-controlled through unity_call_tool.'
               : 'You are connected to Game Dev Hub as admin.',
@@ -91,7 +93,7 @@ async function dispatch({ method, params, store, upstreamRegistry, role }) {
       return {};
 
     case 'tools/list':
-      return { tools: listDevHubTools(role) };
+      return { tools: listDevHubTools(role, { chatFullAccess: role === 'chat' && chatFullAccessForActiveUpstream(store) }) };
 
     case 'tools/call': {
       const name = params.name;

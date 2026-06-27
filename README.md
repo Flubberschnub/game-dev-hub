@@ -21,7 +21,7 @@ Codex  ──┘              │
 - MCP-agnostic upstream configuration for `streamable_http` and basic `stdio` MCP servers.
 - Tool classification by policy patterns and per-tool overrides.
 - Audit log for every upstream tool list/call attempt.
-- File-backed JSON state so everything is easy to inspect and version.
+- File-backed project documents: Markdown lives in configurable folders, while JSON keeps the small index/config.
 
 This is intentionally dependency-light: it uses Node's built-in HTTP server and `fetch`.
 
@@ -55,7 +55,32 @@ The web UI can keep multiple projects in the same Dev Hub state file. Use the **
 
 New projects receive their own `AGENTS.md`, `GAME_DESIGN.md`, and `TECHNICAL_DESIGN.md` starter documents. MCP callers can pass `projectId` explicitly or use `project_set_active` to change the default project.
 
-The interface is divided into tabs for project configuration, upstream MCP setup, documents, tasks, activity, and client connection snippets. Field labels include contextual help, and detected upstream tools appear in a scrollable collapsed catalog so large MCP servers remain manageable.
+The interface is divided into tabs for project configuration, upstream MCP setup, documents, tasks, activity, and client connection snippets. Tasks support parent/subtask organization, human completion and change-request review actions, and active/archived views. Field labels include contextual help, and detected upstream tools appear in a scrollable collapsed catalog so large MCP servers remain manageable.
+
+## Markdown storage and Obsidian
+
+Dev Hub stores persistent text as real Markdown files. `data/state.json` remains the lightweight database for project metadata, task status, relationships, upstream settings, audit indexes, and file paths, but document bodies, task notes, messages, decisions, and audit summaries are written to `.md` files.
+
+By default, project documents live under:
+
+```text
+data/projects/<projectId>/docs
+```
+
+Set `DEVHUB_PROJECT_SPACE` to change the default project-space root, or set **DevHub docs path** per project in the web UI. A relative docs path resolves inside the Dev Hub project space; an absolute path can point at a folder inside a game repo so docs can be version controlled with that project.
+
+Dev Hub's own structured record text lives under the configured docs folder:
+
+```text
+devhub-data/tasks
+devhub-data/messages
+devhub-data/decisions
+devhub-data/audit
+```
+
+These backing files are intentionally separate from `docs_list` documents, so MCP callers keep using the same `tasks_*`, `messages_*`, `decision_*`, and `audit_*` tools without seeing duplicate document entries.
+
+Each project can also configure an **Obsidian vault path**. Vault notes are read and written through separate `vault_*` tools so human-readable Obsidian context stays separate from Dev Hub's own project-document store.
 
 ## MCP endpoints
 
@@ -129,7 +154,8 @@ http://localhost:8080/mcp
 ```
 
 5. Enable it.
-6. For a `stdio` upstream, optionally set environment variables as a JSON object:
+6. Keep **ChatGPT full Unity access** off for read-only planning/review. Turn it on only when you want ChatGPT to call write or destructive-classified Unity MCP tools through this upstream. Explicit per-tool `deny` overrides still block calls.
+7. For a `stdio` upstream, optionally set environment variables as a JSON object:
 
 ```json
 {
@@ -140,7 +166,7 @@ http://localhost:8080/mcp
 
 These values are merged over the Game Dev Hub process environment when the upstream server starts.
 
-7. Configure semantic tools if you want ChatGPT convenience wrappers:
+8. Configure semantic tools if you want ChatGPT convenience wrappers:
 
 ```json
 {
@@ -176,10 +202,15 @@ Both ChatGPT and Codex can use:
 - `docs_read`
 - `docs_write`
 - `docs_search`
+- `vault_list`
+- `vault_read`
+- `vault_write`
+- `vault_search`
 - `tasks_list`
 - `task_read`
 - `task_create`
 - `task_update`
+- `task_delete`
 - `messages_list`
 - `message_post`
 - `decision_record`
@@ -204,6 +235,7 @@ Each upstream has a `policy` object:
 
 ```json
 {
+  "chatFullAccess": false,
   "defaultForChat": "deny",
   "defaultForCodex": "allow",
   "readPatterns": ["get_*", "list_*", "find_*", "inspect_*", "read_*", "*screenshot*", "*console*"],
@@ -219,6 +251,8 @@ Each upstream has a `policy` object:
 ```
 
 Chat role can only call tools classified as `read`.
+
+If an upstream policy sets `"chatFullAccess": true`, ChatGPT can call write and destructive-classified upstream tools unless a tool is explicitly denied. This is off by default and can be toggled in the Upstream MCP tab.
 
 Codex role can call allowed tools. Destructive tools are blocked unless Codex passes:
 
@@ -258,7 +292,7 @@ node scripts/smoke-test.js
 
 ## Next recommended improvements
 
-- Replace JSON file storage with SQLite + migrations.
+- Add optional SQLite migrations for larger task/audit datasets.
 - Add vector search over docs/playtest notes.
 - Add OAuth for public ChatGPT connector exposure.
 - Add approval queue in UI for destructive Codex calls.

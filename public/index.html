@@ -57,6 +57,14 @@
                 <input id="projectUnityPath" placeholder="Example: D:\Games\ProjectFlare\Unity" />
               </div>
               <div class="field">
+                <label for="projectDocsPath">DevHub docs path <span class="help" tabindex="0" data-tooltip="Folder where DevHub stores this project's Markdown documents. Relative paths resolve inside the configured DevHub project space.">?</span></label>
+                <input id="projectDocsPath" placeholder="Leave blank for data/projects/{projectId}/docs" />
+              </div>
+              <div class="field">
+                <label for="projectObsidianPath">Obsidian vault path <span class="help" tabindex="0" data-tooltip="Optional folder for an Obsidian vault. Vault notes are exposed through separate vault tools, not mixed into DevHub state.">?</span></label>
+                <input id="projectObsidianPath" placeholder="Example: D:\Notes\GameDevVault" />
+              </div>
+              <div class="field">
                 <label for="projectActiveUpstream">Default upstream MCP <span class="help" tabindex="0" data-tooltip="The upstream used by default for this project. Configure servers in the Upstream MCP tab first.">?</span></label>
                 <select id="projectActiveUpstream"></select>
               </div>
@@ -78,6 +86,14 @@
             <div class="field">
               <label for="newProjectUnityPath">Unity project path</label>
               <input id="newProjectUnityPath" placeholder="Example: D:\Games\MoonHarbor\Unity" />
+            </div>
+            <div class="field">
+              <label for="newProjectDocsPath">DevHub docs path</label>
+              <input id="newProjectDocsPath" placeholder="Optional Markdown docs folder" />
+            </div>
+            <div class="field">
+              <label for="newProjectObsidianPath">Obsidian vault path</label>
+              <input id="newProjectObsidianPath" placeholder="Optional Obsidian vault folder" />
             </div>
             <button id="createProjectBtn">Create and Switch</button>
           </div>
@@ -123,6 +139,10 @@
               <label class="check-field">
                 <input id="upstreamEnabled" type="checkbox" />
                 <span>Enabled <span class="help" tabindex="0" data-tooltip="The connection test and routed MCP calls require the server to be enabled.">?</span></span>
+              </label>
+              <label class="check-field">
+                <input id="chatFullAccess" type="checkbox" />
+                <span>ChatGPT full Unity access <span class="help" tabindex="0" data-tooltip="Default off. When enabled, ChatGPT may call write and destructive-classified Unity MCP tools through this upstream unless a tool is explicitly denied.">?</span></span>
               </label>
             </div>
 
@@ -244,7 +264,17 @@
         </div>
         <div class="grid two">
           <div class="card">
-            <h3>Project Tasks</h3>
+            <div class="section-heading task-heading">
+              <h3>Project Tasks</h3>
+              <div class="task-view-control">
+                <label for="taskView">View</label>
+                <select id="taskView">
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+            </div>
             <div id="tasksList" class="compact-list"></div>
           </div>
           <div class="card">
@@ -252,6 +282,10 @@
             <div class="field">
               <label for="taskTitle">Task title</label>
               <input id="taskTitle" placeholder="Example: Add dash cooldown UI" />
+            </div>
+            <div class="field">
+              <label for="taskParentId">Parent task <span class="help" tabindex="0" data-tooltip="Choose a parent when this work is one phase or subtask of a larger feature.">?</span></label>
+              <select id="taskParentId"></select>
             </div>
             <div class="form-grid two">
               <div class="field">
@@ -270,7 +304,9 @@
                   <option value="in_progress">In progress</option>
                   <option value="codex_done">Codex done</option>
                   <option value="review">Review</option>
+                  <option value="changes_requested">Changes requested</option>
                   <option value="accepted">Accepted</option>
+                  <option value="complete">Complete</option>
                 </select>
               </div>
             </div>
